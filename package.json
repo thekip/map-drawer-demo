@@ -1,0 +1,23 @@
+{
+  "name": "mapbox-drawer",
+  "description": "",
+  "homepage": "https://stackblitz.com/edit/mapbox-drawer",
+  "dependencies": {
+    "react-scripts": "1.0.10",
+    "turf": "3.0.14",
+    "mapbox-gl": "0.43.0",
+    "chaikin-smooth": "1.0.4",
+    "@turf/bezier-spline": "5.1.5",
+    "@turf/turf": "^5.1.6",
+    "@mapbox/mapbox-gl-draw": "1.0.4",
+    "@meteogroup/ubi-weathermap": "5.2.0-mg.2"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  }
+}
