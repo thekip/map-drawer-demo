@@ -13,6 +13,8 @@ LineString.prototype.internal = function (mode) {
  * @returns {*}
  */
 LineString.prototype.applySmoothing = function (geojson) {
+  //return geojson;
+
   if (geojson.geometry.coordinates.length < 2) {
     return geojson;
   }
@@ -28,9 +30,13 @@ LineString.prototype.applySmoothing = function (geojson) {
     return geojson;
   }
 
-  return bezierSpline(geojson, {
+  const smoothedLine = bezierSpline(geojson, {
     resolution: 1500 * geojson.geometry.coordinates.length,
   });
+
+  smoothedLine.geometry.coordinates.push(latest);
+
+  return smoothedLine;
 };
 
 LineString.prototype.compareCoords = function (a, b, buffer) {

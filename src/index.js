@@ -10,13 +10,13 @@ mapboxgl.accessToken = 'pk.eyJ1IjoibWV0ZW9ncm91cC1tYXBib3giLCJhIjoiY2o4bDB1ZDB6M
 var map = new mapboxgl.Map({
   container: 'map', // container id
   style: './assets/styles_v1_mapbox_light-v9-custom.json', //hosted style id
-  center: [-91.874, 42.760], // starting position
-  zoom: 1 // starting zoom
+  center: {lng: 178.86136469737198, lat: 64.75078131466523}, // starting position
+  zoom: 3 // starting zoom
 });
 
 const styles = require('./draw-lib/lib/theme');
 
-var draw = new MapboxDraw({
+window.draw = new MapboxDraw({
   //modes: {
   //  ...MapboxDraw.modes,
   //  draw_line_string: DrawCurvedLine,
@@ -24,6 +24,19 @@ var draw = new MapboxDraw({
   //},
   styles: [
     ...styles,
+
+    {
+      'id': 'gl-snap-helper',
+      'type': 'circle',
+      'filter': ['all',
+        ['==', '$type', 'Point'],
+        ['==', 'meta', 'snap']],
+      'paint': {
+        'circle-radius': 5,
+        'circle-opacity': 0.8,
+        'circle-color': '#f44268'
+      }
+    },
     {
       'id': 'gl-draw-line-segment-red-double',
       'type': 'line',
@@ -167,4 +180,13 @@ var draw = new MapboxDraw({
   ],
 });
 
-map.addControl(draw);
+map.addControl(window.draw);
+
+const features = {"type":"FeatureCollection","features":[{"id":"38b809216b3d6247729de1746e6e0eaa","type":"Feature","properties":{},"geometry":{"coordinates":[[137.46488032197874,55.04307519207168],[142.2511305940352,66.09097236039014],[178.46176185022142,67.75015343323247],[180.06787855917594,53.91932319612667],[198.83024193186674,49.347744097383384]],"type":"LineString"}},{"id":"fd93322ba9ebecb13bef1069e6d62e30","type":"Feature","properties":{},"geometry":{"coordinates":[[148.31057090499456,55.686318109889385],[168.09500854698337,61.941521367333365]],"type":"LineString"}}]};
+
+
+map.on('load', () => {
+  window.draw.set(features)
+});
+
+window.map = map;

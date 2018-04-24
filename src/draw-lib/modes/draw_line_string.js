@@ -77,9 +77,11 @@ DrawLineString.clickAnywhere = function (state, e) {
   }
 
   this.updateUIClasses({ mouse: Constants.cursors.ADD });
+
   state.line.updateCoordinate(state.currentVertexPosition, e.lngLat.lng, e.lngLat.lat);
   if (state.direction === 'forward') {
     state.currentVertexPosition++;
+    console.log();
     state.line.updateCoordinate(state.currentVertexPosition, e.lngLat.lng, e.lngLat.lat);
   } else {
     state.line.addCoordinate(0, e.lngLat.lng, e.lngLat.lat);
@@ -91,6 +93,14 @@ DrawLineString.clickOnVertex = function (state) {
 };
 
 DrawLineString.onMouseMove = function (state, e) {
+  //const features = this.featuresAt(e.point, state.line.id);
+  //
+  //let point = e.lngLat;
+  //
+  //if (features.length) {
+  //  point = this.getClosestFeature(features, [e.lngLat.lng, e.lngLat.lat]);
+  //}
+
   state.line.updateCoordinate(state.currentVertexPosition, e.lngLat.lng, e.lngLat.lat);
   if (CommonSelectors.isVertex(e)) {
     this.updateUIClasses({ mouse: Constants.cursors.POINTER });
@@ -115,6 +125,7 @@ DrawLineString.onStop = function (state) {
   doubleClickZoom.enable(this);
   this.activateUIButton();
 
+  console.log(state, this);
   // check to see if we've deleted this feature
   if (this.getFeature(state.line.id) === undefined) return;
 

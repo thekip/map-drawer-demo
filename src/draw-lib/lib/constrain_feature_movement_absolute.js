@@ -14,7 +14,7 @@ const {
 // - any part of any feature to exceed the poles
 // - any feature to be completely lost in the space between the projection's
 //   edge and the poles, such that it couldn't be re-selected and moved back
-module.exports = function(geojsonFeatures, delta) {
+module.exports = function (geojsonFeatures, point) {
   // "inner edge" = a feature's latitude closest to the equator
   let northInnerEdge = LAT_MIN;
   let southInnerEdge = LAT_MAX;
@@ -27,42 +27,49 @@ module.exports = function(geojsonFeatures, delta) {
 
   geojsonFeatures.forEach(feature => {
     const bounds = extent(feature);
-    const featureSouthEdge = bounds[1];
-    const featureNorthEdge = bounds[3];
-    const featureWestEdge = bounds[0];
-    const featureEastEdge = bounds[2];
+    const [featureWestEdge, featureSouthEdge, featureEastEdge, featureNorthEdge] = bounds;
+
     if (featureSouthEdge > northInnerEdge) northInnerEdge = featureSouthEdge;
     if (featureNorthEdge < southInnerEdge) southInnerEdge = featureNorthEdge;
     if (featureNorthEdge > northOuterEdge) northOuterEdge = featureNorthEdge;
     if (featureSouthEdge < southOuterEdge) southOuterEdge = featureSouthEdge;
+
     if (featureWestEdge < westEdge) westEdge = featureWestEdge;
     if (featureEastEdge > eastEdge) eastEdge = featureEastEdge;
   });
 
-
   // These changes are not mutually exclusive: we might hit the inner
   // edge but also have hit the outer edge and therefore need
   // another readjustment
-  const constrainedDelta = {...delta};
+  const constrainedPoint = { ...point };
 
-  if (northInnerEdge + constrainedDelta.lat > LAT_RENDERED_MAX) {
-    constrainedDelta.lat = LAT_RENDERED_MAX - northInnerEdge;
+  if (constrainedPoint.lat > LAT_RENDERED_MAX) {
+    constrainedPoint.lat = LAT_RENDERED_MAX - northInnerEdge;
   }
-  if (northOuterEdge + constrainedDelta.lat > LAT_MAX) {
-    constrainedDelta.lat = LAT_MAX - northOuterEdge;
+  if (constrainedPoint.lat > LAT_MAX) {
+    constrainedPoint.lat = LAT_MAX - northOuterEdge;
   }
-  if (southInnerEdge + constrainedDelta.lat < LAT_RENDERED_MIN) {
-    constrainedDelta.lat = LAT_RENDERED_MIN - southInnerEdge;
+  if (constrainedPoint.lat < LAT_RENDERED_MIN) {
+    constrainedPoint.lat = LAT_RENDERED_MIN - southInnerEdge;
   }
-  if (southOuterEdge + constrainedDelta.lat < LAT_MIN) {
-    constrainedDelta.lat = LAT_MIN - southOuterEdge;
-  }
-  if (westEdge + constrainedDelta.lng <= LNG_MIN) {
-    constrainedDelta.lng += Math.ceil(Math.abs(constrainedDelta.lng) / 360) * 360;
-  }
-  if (eastEdge + constrainedDelta.lng >= LNG_MAX) {
-    constrainedDelta.lng -= Math.ceil(Math.abs(constrainedDelta.lng) / 360) * 360;
+  if (constrainedPoint.lat < LAT_MIN) {
+    constrainedPoint.lat = LAT_MIN - southOuterEdge;
   }
 
-  return constrainedDelta;
+
+  if (constrainedPoint.lng <= LNG_MIN) {
+    constrainedPoint.lng += Math.floor(Math.abs(constrainedPoint.lng) / 270) * 360;
+  }
+  if (constrainedPoint.lng >= LNG_MAX) {
+    constrainedPoint.lng -= Math.floor(Math.abs(constrainedPoint.lng) / 270) * 360;
+  }
+
+  if (constrainedPoint.lng - eastEdge > LNG_MAX) {
+    constrainedPoint.lng -= 360;
+  }
+  if (constrainedPoint.lng - westEdge < LNG_MIN) {
+    constrainedPoint.lng += 360;
+  }
+
+  return constrainedPoint;
 };

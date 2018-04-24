@@ -1,10 +1,11 @@
-const {noTarget, isOfMetaType, isInactiveFeature, isShiftDown} = require('../lib/common_selectors');
+const { noTarget, isOfMetaType, isInactiveFeature, isShiftDown } = require('../lib/common_selectors');
 const createSupplementaryPoints = require('../lib/create_supplementary_points');
-const constrainFeatureMovement = require('../lib/constrain_feature_movement');
+const constrainFeatureMovement = require('../lib/constrain_feature_movement_absolute');
 const doubleClickZoom = require('../lib/double_click_zoom');
 const Constants = require('../constants');
 const CommonSelectors = require('../lib/common_selectors');
 const moveFeatures = require('../lib/move_features');
+const turf = require('@turf/turf');
 
 const isVertex = isOfMetaType(Constants.meta.VERTEX);
 const isMidpoint = isOfMetaType(Constants.meta.MIDPOINT);
@@ -13,14 +14,14 @@ const DirectSelect = {};
 
 // INTERNAL FUCNTIONS
 
-DirectSelect.fireUpdate = function() {
+DirectSelect.fireUpdate = function () {
   this.map.fire(Constants.events.UPDATE, {
     action: Constants.updateActions.CHANGE_COORDINATES,
     features: this.getSelected().map(f => f.toGeoJSON())
   });
 };
 
-DirectSelect.fireActionable = function(state) {
+DirectSelect.fireActionable = function (state) {
   this.setActionableState({
     combineFeatures: false,
     uncombineFeatures: false,
@@ -28,13 +29,31 @@ DirectSelect.fireActionable = function(state) {
   });
 };
 
-DirectSelect.startDragging = function(state, e) {
+DirectSelect.startDragging = function (state, e) {
   this.map.dragPan.disable();
   state.canDragMove = true;
   state.dragMoveLocation = e.lngLat;
 };
 
-DirectSelect.stopDragging = function(state) {
+
+DirectSelect.stopDragging = function (state) {
+  //if (state.dragMoving && state.selectedCoordPaths.length > 0 && state.feature.snappedTo) {
+  //
+  //  const turfPoint = turf.point(state.feature.getCoordinate(state.selectedCoordPaths[0]));
+  //
+  //  const snapped = turf.nearestPointOnLine(state.feature.snappedTo, turfPoint);
+  //
+  //  //const constrainedPoint = constrainFeatureMovement([turfPoint], snapped.geometry.coordinates);
+  //  const constrainedPoint = snapped.geometry.coordinates;
+  //
+  //  //console.log('stop dragging snapped vertex', snapped);
+  //
+  //  console.log('stopDragging', constrainedPoint);
+  //  console.log('distance', snapped.properties.dist);
+  //
+  //  state.feature.updateCoordinate(state.selectedCoordPaths[0], constrainedPoint[0], constrainedPoint[1]);
+  //}
+
   this.map.dragPan.enable();
   state.dragMoving = false;
   state.canDragMove = false;
@@ -55,7 +74,7 @@ DirectSelect.onVertex = function (state, e) {
   this.setSelectedCoordinates(selectedCoordinates);
 };
 
-DirectSelect.onMidpoint = function(state, e) {
+DirectSelect.onMidpoint = function (state, e) {
   this.startDragging(state, e);
   const about = e.featureTarget.properties;
   state.feature.addCoordinate(about.coord_path, about.lng, about.lat);
@@ -63,45 +82,122 @@ DirectSelect.onMidpoint = function(state, e) {
   state.selectedCoordPaths = [about.coord_path];
 };
 
-DirectSelect.pathsToCoordinates = function(featureId, paths) {
-  return paths.map(coord_path => { return { feature_id: featureId, coord_path }; });
+DirectSelect.pathsToCoordinates = function (featureId, paths) {
+  return paths.map(coord_path => {
+    return { feature_id: featureId, coord_path };
+  });
 };
 
-DirectSelect.onFeature = function(state, e) {
+DirectSelect.onFeature = function (state, e) {
   if (state.selectedCoordPaths.length === 0) this.startDragging(state, e);
   else this.stopDragging(state);
 };
 
-DirectSelect.dragFeature = function(state, e, delta) {
+DirectSelect.dragFeature = function (state, e, delta) {
   moveFeatures(this.getSelected(), delta);
   state.dragMoveLocation = e.lngLat;
 };
 
-DirectSelect.dragVertex = function(state, e, delta) {
-  //const selectedCoords = state.selectedCoordPaths.map(coord_path => state.feature.getCoordinate(coord_path));
-  //const selectedCoordPoints = selectedCoords.map(coords => ({
-  //  type: Constants.geojsonTypes.FEATURE,
-  //  properties: {},
-  //  geometry: {
-  //    type: Constants.geojsonTypes.POINT,
-  //    coordinates: coords
-  //  }
-  //}));
-  //
-  //const constrainedDelta = constrainFeatureMovement(selectedCoordPoints, delta);
-  //
-  //console.log(e);
+DirectSelect.dragVertex = function (state, e) {
+  const selectedCoords = state.selectedCoordPaths.map(coord_path => state.feature.getCoordinate(coord_path));
+  const selectedCoordPoints = selectedCoords.map(coords => ({
+    type: Constants.geojsonTypes.FEATURE,
+    properties: {},
+    geometry: {
+      type: Constants.geojsonTypes.POINT,
+      coordinates: coords
+    }
+  }));
 
-  state.selectedCoordPaths.forEach((coord, i) => {
-    state.feature.updateCoordinate(state.selectedCoordPaths[i], e.lngLat.lng, e.lngLat.lat);
+  state.feature.snappedTo = null;
+
+  let point = e.lngLat;
+  let distance = null;
+  let snappedPoint = null;
+  if (state.feature.type === Constants.geojsonTypes.LINE_STRING) {
+    const features = this.featuresAt(e.point, state.feature.id);
+
+    if (features.length) {
+      const closestFeature = this.getClosestFeature(features, [e.lngLat.lng, e.lngLat.lat]);
+      point = closestFeature.point;
+      distance = closestFeature.distance;
+      snappedPoint = closestFeature.snapped;
+      state.feature.snappedTo = closestFeature.feature;
+    }
+
+  }
+
+  const constrainedPoint = constrainFeatureMovement(selectedCoordPoints, point);
+
+  if (state.feature.snappedTo) {
+    console.log('dragVertex', constrainedPoint);
+    const distance = turf.pointToLineDistance(snappedPoint, state.feature.snappedTo);
+    console.log('distance', distance);
+
+  }
+
+  for (let i = 0; i < selectedCoords.length; i++) {
+    state.feature.updateCoordinate(state.selectedCoordPaths[i], constrainedPoint.lng, constrainedPoint.lat);
+  }
+};
+
+DirectSelect.getClosestFeature = function (features, lngLatLike) {
+  const ptA = this.map.project(lngLatLike);
+  const turfPoint = turf.point(lngLatLike);
+
+  let minDistance = Number.POSITIVE_INFINITY;
+  let closestPoint = null;
+
+  for (const feature of features) {
+    const snapped = turf.nearestPointOnLine(feature, turfPoint);
+    snapped.properties.feature = feature;
+    const ptB = this.map.project(snapped.geometry.coordinates);
+    const distance = Math.hypot(ptA.x - ptB.x, ptA.y - ptB.y);
+
+    if (distance < minDistance) {
+      closestPoint = snapped;
+    }
+    minDistance = distance;
+  }
+
+  const [lng, lat] = closestPoint.geometry.coordinates;
+
+  return {
+    snapped: closestPoint,
+    feature: closestPoint.properties.feature,
+    distance: closestPoint.properties.dist,
+    point: {lng, lat},
+  };
+};
+
+DirectSelect.featuresAt = function (point, id) {
+  const box = getBox(point);
+
+  const features = this.map.queryRenderedFeatures(box).filter((feature) => {
+    return (
+      META_TYPES.includes(feature.properties.meta) && feature.properties.id !== id
+    );
   });
 
+  const uniqueFeatures = features.reduce((acc, feature) => {
+    acc[feature.properties.id] = feature;
+    return acc;
+  }, {});
 
-  //for (let i = 0; i < selectedCoords.length; i++) {
-  //  const coord = selectedCoords[i];
-  //  state.feature.updateCoordinate(state.selectedCoordPaths[i], coord[0] + constrainedDelta.lng, coord[1] + constrainedDelta.lat);
-  //}
+  return Object.values(uniqueFeatures);
 };
+
+function getBox(point, buffer = 30) {
+  return [
+    [point.x - buffer, point.y - buffer],
+    [point.x + buffer, point.y + buffer]
+  ];
+}
+
+const META_TYPES = [
+  Constants.meta.FEATURE,
+  'segment',
+];
 
 DirectSelect.clickNoTarget = function () {
   this.changeMode(Constants.modes.SIMPLE_SELECT);
@@ -119,7 +215,7 @@ DirectSelect.clickActiveFeature = function (state) {
 
 // EXTERNAL FUNCTIONS
 
-DirectSelect.onSetup = function(opts) {
+DirectSelect.onSetup = function (opts) {
   const featureId = opts.featureId;
   const feature = this.getFeature(featureId);
 
@@ -151,12 +247,19 @@ DirectSelect.onSetup = function(opts) {
   return state;
 };
 
-DirectSelect.onStop = function() {
+DirectSelect.onStop = function () {
+  //const features = this._ctx.store._featureIds.values().map((id) => this._ctx.store._features[id].internal());
+  //
+  //console.log(JSON.stringify({"type":"FeatureCollection", features}));
+
+  //console.log(this._ctx.store._featureIds.values(), this._ctx.store._features);
   doubleClickZoom.enable(this);
   this.clearSelectedCoordinates();
 };
 
-DirectSelect.toDisplayFeatures = function(state, geojson, push) {
+
+DirectSelect.toDisplayFeatures = function (state, geojson, push) {
+
   if (state.featureId === geojson.properties.id) {
     geojson.properties.active = Constants.activeStates.ACTIVE;
     push(geojson);
@@ -171,15 +274,35 @@ DirectSelect.toDisplayFeatures = function(state, geojson, push) {
       //midpoints: true,
       selectedPaths: state.selectedCoordPaths
     });
-    points.forEach(push)
+    points.forEach(push);
+
+    //const lastCoordinate = origFeature.geometry.coordinates[state.feature.coordinates.length - 1];
+    //const features = state.feature.featuresAt(lastCoordinate);
+    //if (features.length) {
+    //  const coords = state.feature.getClosestFeature(features, lastCoordinate).geometry.coordinates;
+    //
+    //  push({
+    //    type: Constants.geojsonTypes.FEATURE,
+    //    properties: geojson.properties,
+    //    geometry: {
+    //      type: 'Point',
+    //      meta: 'snap',
+    //      parent: origFeature.id,
+    //      coordinates: coords,
+    //    }
+    //  })
+    //}
+
   } else {
     geojson.properties.active = Constants.activeStates.INACTIVE;
     push(geojson);
   }
+
+
   this.fireActionable(state);
 };
 
-DirectSelect.onTrash = function(state) {
+DirectSelect.onTrash = function (state) {
   state.selectedCoordPaths.sort().reverse().forEach(id => state.feature.removeCoordinate(id));
   this.map.fire(Constants.events.UPDATE, {
     action: Constants.updateActions.CHANGE_COORDINATES,
@@ -194,7 +317,7 @@ DirectSelect.onTrash = function(state) {
   }
 };
 
-DirectSelect.onMouseMove = function(state, e) {
+DirectSelect.onMouseMove = function (state, e) {
   // On mousemove that is not a drag, stop vertex movement.
   const isFeature = CommonSelectors.isActiveFeature(e);
   const onVertex = isVertex(e);
@@ -205,18 +328,18 @@ DirectSelect.onMouseMove = function(state, e) {
   this.stopDragging(state);
 };
 
-DirectSelect.onMouseOut = function(state) {
+DirectSelect.onMouseOut = function (state) {
   // As soon as you mouse leaves the canvas, update the feature
   if (state.dragMoving) this.fireUpdate();
 };
 
-DirectSelect.onTouchStart = DirectSelect.onMouseDown = function(state, e) {
+DirectSelect.onTouchStart = DirectSelect.onMouseDown = function (state, e) {
   if (isVertex(e)) return this.onVertex(state, e);
   if (CommonSelectors.isActiveFeature(e)) return this.onFeature(state, e);
   if (isMidpoint(e)) return this.onMidpoint(state, e);
 };
 
-DirectSelect.onDrag = function(state, e) {
+DirectSelect.onDrag = function (state, e) {
   if (state.canDragMove !== true) return;
   state.dragMoving = true;
   e.originalEvent.stopPropagation();
@@ -232,23 +355,24 @@ DirectSelect.onDrag = function(state, e) {
   state.dragMoveLocation = e.lngLat;
 };
 
-DirectSelect.onClick = function(state, e) {
+DirectSelect.onClick = function (state, e) {
   if (noTarget(e)) return this.clickNoTarget(state, e);
   if (CommonSelectors.isActiveFeature(e)) return this.clickActiveFeature(state, e);
   if (isInactiveFeature(e)) return this.clickInactive(state, e);
   this.stopDragging(state);
 };
 
-DirectSelect.onTap = function(state, e) {
+DirectSelect.onTap = function (state, e) {
   if (noTarget(e)) return this.clickNoTarget(state, e);
   if (CommonSelectors.isActiveFeature(e)) return this.clickActiveFeature(state, e);
   if (isInactiveFeature(e)) return this.clickInactive(state, e);
 };
 
-DirectSelect.onTouchEnd = DirectSelect.onMouseUp = function(state) {
+DirectSelect.onTouchEnd = DirectSelect.onMouseUp = function (state, a, b) {
   if (state.dragMoving) {
     this.fireUpdate();
   }
+
   this.stopDragging(state);
 };
 
