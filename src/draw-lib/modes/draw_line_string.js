@@ -87,7 +87,7 @@ DrawLineString.clickAnywhere = function (state, e) {
 };
 
 DrawLineString.clickOnVertex = function (state) {
-  return this.changeMode(Constants.modes.DIRECT_SELECT, { featureId: state.line.id });
+  return this.changeMode(Constants.modes.SIMPLE_SELECT, { featureIds: [state.line.id] });
 };
 
 DrawLineString.onMouseMove = function (state, e) {
@@ -136,6 +136,30 @@ DrawLineString.onTrash = function (state) {
 };
 
 DrawLineString.toDisplayFeatures = function (state, geojson, display) {
+  if (geojson.geometry.coordinates.length > 1 && state.line.coordinates.length > 1) {
+    const line = turf.lineString(geojson.geometry.coordinates);
+
+    let segmentIndex = 1;
+    turf.segmentEach(turf.lineString(state.line.coordinates), (segment) => {
+      const coordinates = segment.geometry.coordinates;
+
+      const start = turf.point(coordinates[0]);
+      const stop = turf.point(coordinates[1]);
+      const feature = turf.lineSlice(start, stop, line);
+
+      feature.properties = {
+        meta: 'segment',
+        segmentId: `${segmentIndex}`,
+        parent: geojson.properties.id,
+      };
+
+      segmentIndex++;
+      display(feature);
+    })
+  } else {
+    display(geojson);
+  }
+
   const isActiveLine = geojson.properties.id === state.line.id;
   geojson.properties.active = (isActiveLine) ? Constants.activeStates.ACTIVE : Constants.activeStates.INACTIVE;
   if (!isActiveLine) return display(geojson);
@@ -151,8 +175,6 @@ DrawLineString.toDisplayFeatures = function (state, geojson, display) {
     `${vertexPosition}`,
     false
   ));
-
-  display(geojson);
 };
 
 module.exports = DrawLineString;

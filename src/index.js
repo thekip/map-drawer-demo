@@ -25,24 +25,6 @@ var draw = new MapboxDraw({
   styles: [
     ...styles,
     {
-      'id': 'gl-draw-line-segment-red-double',
-      'type': 'line',
-      'filter': ['all',
-        ['==', '$type', 'LineString'],
-        ['==', 'meta', 'segment'],
-        ['==', 'segmentId', '1']
-      ],
-      'layout': {
-        'line-cap': 'round',
-        'line-join': 'round'
-      },
-      'paint': {
-        'line-color': '#f4ac41',
-        'line-dasharray': [0.2, 2],
-        'line-width': 10
-      }
-    },
-    {
       'id': 'gl-draw-line-segment-red-1',
       'type': 'line',
       'filter': ['all',
